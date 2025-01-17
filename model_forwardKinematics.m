@@ -167,6 +167,7 @@ wrist_l = JointDef('translation_parent', [-0.008797 -0.235841 -0.01361]', ...
     'range', dofs('wrist_flex_l').range, ...
     'defaultValue', dofs('wrist_flex_l').defaultValue, ...
     'defaultSpeed', dofs('wrist_flex_l').defaultSpeed);
+clear dofs
 
 %% Define bodies of the model
 
@@ -187,10 +188,12 @@ forearm_l = BodyDef('mass', 1.215, 'COM', [0 -0.120525 0]', 'inertia', [0.002962
 hand_r = BodyDef('mass', 0.4575, 'COM', [0 -0.068095 0]', 'inertia', [0.000892 0.000547 0.00134 0 0 0]');
 hand_l = BodyDef('mass', 0.4575, 'COM', [0 -0.068095 0]', 'inertia', [0.000892 0.000547 0.00134 0 0 0]');
 
+%% Scale mass of the bodies
+
 TotalBodyMass = ground.mass + pelvis.mass + femur_r.mass + femur_l.mass + ...
-                tibia_r.mass + tibia_l.mass + foot_r.mass + foot_l.mass + ...
-                torso.mass + head.mass + arm_r.mass + arm_l.mass + forearm_r.mass + ...
-                forearm_l.mass + hand_r.mass + hand_l.mass;
+    tibia_r.mass + tibia_l.mass + foot_r.mass + foot_l.mass + ...
+    torso.mass + head.mass + arm_r.mass + arm_l.mass + forearm_r.mass + ...
+    forearm_l.mass + hand_r.mass + hand_l.mass;
 
 scaleFactor.mass = BodyMass / TotalBodyMass;
 
@@ -209,6 +212,7 @@ forearm_r.mass = forearm_r.mass * scaleFactor.mass;
 forearm_l.mass = forearm_l.mass * scaleFactor.mass;
 hand_r.mass = hand_r.mass * scaleFactor.mass;
 hand_l.mass = hand_l.mass * scaleFactor.mass;
+clear BodyHeight BodyMass TotalBodyMass
 
 %% Define Markers
 Sternum = MarkerDef('attachedBody', 'torso', 'deviation', [0.07 0.3 0]');
@@ -250,7 +254,7 @@ LMidToeLat = MarkerDef('attachedBody', 'foot_l', 'deviation', [0.19 0 -0.065]');
 LMidToeMed = MarkerDef('attachedBody', 'foot_l', 'deviation', [0.19 0.005 0.04]');
 LMidToeTip = MarkerDef('attachedBody', 'foot_l', 'deviation', [0.26 0.005 0]');
 
-%% Calculate joint positions under a particular coordinate set
+%% Read IK input
 
 dofMap = containers.Map({'pelvis_tx', 'pelvis_ty', 'pelvis_tz', ...
     'hip_flexion_r', 'hip_adduction_r', 'hip_rotation_r', ...
@@ -265,12 +269,6 @@ dofMap = containers.Map({'pelvis_tx', 'pelvis_ty', 'pelvis_tz', ...
     'elbow_flex_r', 'elbow_rot_r', ...
     'elbow_flex_l', 'elbow_rot_l', ...
     'wrist_flex_r', 'wrist_flex_l'}, num2cell(1:33));
-% % initial position
-% q = zeros(height(dofMap), 1); q(dofMap('pelvis_ty')) = 0.93;
-% q(dofMap('hip_flexion_r')) = deg2rad(39);
-% 目前的问题：上肢姿态和OpenSim实际姿态对不上
-% 可能是肘关节或肩关节的原因
-% 后面先把动画做了，然后通过动画找问题
 
 % position input
 import org.opensim.modeling.*
@@ -287,8 +285,277 @@ for i = 1 : npts
         data(i,j) = state.getData.getitem(j-1);
     end
 end
+clear state i
+
+%% Read static TRC input (markers)
+
+trcFile = MarkerData('.\marker_input_static.trc');
+% rate = trcFile.getCameraRate;
+markerNum = trcFile.getNumMarkers;
+
+markerPos_input = zeros(markerNum, 3);
+for i = 0 : markerNum-1 % for every marker
+    currentMarkerPos = zeros(trcFile.getNumFrames, 3); % temporary buffer for marker position in STATIC position
+    for frame = 0 : trcFile.getNumFrames-1 % for every frame
+        tempPos = trcFile.getFrame(frame).getMarker(i);
+        currentMarkerPos(frame+1, :) = [tempPos.get(0), tempPos.get(1), tempPos.get(2)] / 1000;
+    end
+    markerPos_input(i+1, :) = mean(currentMarkerPos);
+end
+
+markerInputMap = containers.Map({'RASIS', 'LASIS', 'VSacral', 'RThighUpper', ...
+    'RThighFront', 'RThighRear', 'LThighUpper', 'LThighFront', ...
+    'LThighRear', 'RKneeLat', 'RKneeMed', 'LKneeLat', 'LKneeMed', ...
+    'RShankUpper', 'RShankFront', 'RShankRear', 'LShankUpper', ...
+    'LShankFront', 'LShankRear', 'RAnkleLat', 'RAnkleMed', ...
+    'LAnkleLat', 'LAnkleMed', 'RHeel', 'RMidfootSup', 'RMidfootLat', ...
+    'RToeTip', 'LHeel', 'LMidfootSup', 'LMidfootLat', 'LToeTip', ...
+    'Sternum', 'RAcromium', 'LAcromium', 'RBicep', 'LBicep', 'RElbow', ...
+    'LElbow', 'RWristMed', 'RWristLat', 'LWristMed', 'LWristLat', ...
+    'RToeLat', 'RToeMed', 'LToeLat', 'LToeMed', 'RTemple', ...
+    'LTemple', 'TopHead'}, num2cell(1:49));
+clear tempPos markerNum currentMarkerPos i frame
+
+%% Scale bone length from static pose
+% NOTE THAT THIS PROCEDURE SHOULD BE EXECUTED ITERATIVELY UNTIL SCALE
+% FACTORS ARE NEAR 1
+q = zeros(height(dofMap),1); q(dofMap('pelvis_ty')) = 0.95;
+
+% Topology view:
+% 1. [ground] (ROOT) --- ground_pelvis --[pelvis]--> hip_r --[femur_r]--> knee_r --[tibia_r]--> ankle_r --[foot_r]
+% 2. [pelvis]--> hip_l --[femur_l]--> knee_l --[tibia_l]--> ankle_l --[foot_l]
+% 3. [pelvis]--> back --[torso]--> neck --[head]
+% 4. [torso]--> shoulder_r --[arm_r]--> elbow_r --[forearm_r]--> wrist_r --[hand_r]
+% 5. [torso]--> shoulder_l --[arm_l]--> elbow_l --[forearm_l]--> wrist_l --[hand_l]
+
+% ----- route 1 ----- %
+% [ground]--> ground_pelvis --[pelvis]
+pelvis.T(1,4) = q(dofMap('pelvis_tx'));
+pelvis.T(2,4) = q(dofMap('pelvis_ty'));
+pelvis.T(3,4) = q(dofMap('pelvis_tz'));
+
+% [pelvis]--> hip_r --[femur_r]
+P = hip_r.translation_parent;
+R = eye(3);
+femur_r.T = [R, R*P+pelvis.T(1:3,4); 0 0 0 1];
+
+% [femur_r]--> knee_r --[tibia_r]
+P = knee_r.translation_parent;
+R1 = Rot(hip_r.axis(1:3,1), q(dofMap('hip_flexion_r')));
+R2 = Rot(hip_r.axis(1:3,2), q(dofMap('hip_adduction_r')));
+R3 = Rot(hip_r.axis(1:3,3), q(dofMap('hip_rotation_r')));
+R = R*R1*R2*R3;
+tibia_r.T = [R, R*P+femur_r.T(1:3,4); 0 0 0 1];
+femur_r.T(1:3,1:3) = R;
+
+% [tibia_r]--> ankle_r --[foot_r]
+P = ankle_r.translation_parent;
+R = R*Rot(knee_r.axis(1:3,1), q(dofMap('knee_flexion_r')));
+foot_r.T = [R, R*P+tibia_r.T(1:3,4); 0 0 0 1];
+tibia_r.T(1:3,1:3) = R;
+
+R1 = Rot(ankle_r.axis(1:3,1), q(dofMap('ankle_dorsiflexion_r')));
+R2 = Rot(ankle_r.axis(1:3,2), q(dofMap('ankle_adduction_r')));
+R = R*R1*R2;
+foot_r.T(1:3,1:3) = R;
+
+% ----- route 2 ----- %
+% [pelvis]--> hip_l --[femur_l]
+P = hip_l.translation_parent;
+R = eye(3);
+femur_l.T = [R, R*P+pelvis.T(1:3,4); 0 0 0 1];
+
+% [femur_l]--> knee_l --[tibia_l]
+P = knee_l.translation_parent;
+R1 = Rot(hip_l.axis(1:3,1), q(dofMap('hip_flexion_l')));
+R2 = Rot(hip_l.axis(1:3,2), q(dofMap('hip_adduction_l')));
+R3 = Rot(hip_l.axis(1:3,3), q(dofMap('hip_rotation_l')));
+R = R*R1*R2*R3;
+tibia_l.T = [R, R*P+femur_l.T(1:3,4); 0 0 0 1];
+femur_l.T(1:3,1:3) = R;
+
+% [tibia_l]--> ankle_l --[foot_l]
+P = ankle_l.translation_parent;
+R = R*Rot(knee_l.axis(1:3,1), q(dofMap('knee_flexion_l')));
+foot_l.T = [R, R*P+tibia_l.T(1:3,4); 0 0 0 1];
+tibia_l.T(1:3,1:3) = R;
+
+R1 = Rot(ankle_l.axis(1:3,1), q(dofMap('ankle_dorsiflexion_l')));
+R2 = Rot(ankle_l.axis(1:3,2), q(dofMap('ankle_adduction_l')));
+R = R*R1*R2;
+foot_l.T(1:3,1:3) = R;
+
+% ----- route 3 ----- %
+% 3. [pelvis]--> back --[torso]--> neck --[head]
+% [pelvis]--> back --[torso]
+P = back.translation_parent;
+R = eye(3);
+torso.T = [R, R*P+pelvis.T(1:3,4); 0 0 0 1];
+
+% [torso]--> neck --[head]
+P = neck.translation_parent;
+R1 = Rot(back.axis(1:3,1), q(dofMap('lumbar_extension')));
+R2 = Rot(back.axis(1:3,2), q(dofMap('lumbar_bending')));
+R3 = Rot(back.axis(1:3,3), q(dofMap('lumbar_rotation')));
+R = R*R1*R2*R3;
+head.T = [R, R*P+torso.T(1:3,4); 0 0 0 1];
+torso.T(1:3,1:3) = R;
+
+R1 = Rot(neck.axis(1:3,1), q(dofMap('neck_extension')));
+R2 = Rot(neck.axis(1:3,2), q(dofMap('neck_bending')));
+R3 = Rot(neck.axis(1:3,3), q(dofMap('neck_rotation')));
+R = R*R1*R2*R3;
+head.T(1:3,1:3) = R;
+
+% ----- route 4 ----- %
+% 4. [torso]--> shoulder_r --[arm_r]--> elbow_r --[forearm_r]--> wrist_r --[hand_r]
+% [torso]--> shoulder_r --[arm_r]
+P = shoulder_r.translation_parent;
+R = torso.T(1:3,1:3);
+arm_r.T = [R, R*P+torso.T(1:3,4); 0 0 0 1];
+
+% [arm_r]--> elbow_r -- [forearm_r]
+P = elbow_r.translation_parent;
+R1 = Rot(shoulder_r.axis(1:3,1), q(dofMap('arm_flex_r')));
+R2 = Rot(shoulder_r.axis(1:3,2), q(dofMap('arm_add_r')));
+R3 = Rot(shoulder_r.axis(1:3,2), q(dofMap('arm_rot_r')));
+R = R*R1*R2*R3;
+forearm_r.T = [R, R*P+arm_r.T(1:3,4); 0 0 0 1];
+arm_r.T(1:3,1:3) = R;
+
+% [forearm_r]--> wrist_r -- [hand_r]
+P = wrist_r.translation_parent;
+R1 = Rot(elbow_r.axis(1:3,1), q(dofMap('elbow_flex_r')));
+R2 = Rot(elbow_r.axis(1:3,2), q(dofMap('elbow_rot_r')));
+R = R*R1*R2;
+hand_r.T = [R, R*P+forearm_r.T(1:3,4); 0 0 0 1];
+forearm_r.T(1:3,1:3) = R;
+
+R = R*Rot(wrist_r.axis(1:3,1), q(dofMap('wrist_flex_r')));
+hand_r.T(1:3,1:3) = R;
+
+% ----- route 5 ----- %
+% 5. [torso]--> shoulder_l --[arm_l]--> elbow_l --[forearm_l]--> wrist_l --[hand_l]
+% [torso]--> shoulder_l --[arm_l]
+P = shoulder_l.translation_parent;
+R = torso.T(1:3,1:3);
+arm_l.T = [R, R*P+torso.T(1:3,4); 0 0 0 1];
+
+% [arm_l]--> elbow_l -- [forearm_l]
+P = elbow_l.translation_parent;
+R1 = Rot(shoulder_l.axis(1:3,1), q(dofMap('arm_flex_l')));
+R2 = Rot(shoulder_l.axis(1:3,2), q(dofMap('arm_add_l')));
+R3 = Rot(shoulder_l.axis(1:3,2), q(dofMap('arm_rot_l')));
+R = R*R1*R2*R3;
+forearm_l.T = [R, R*P+arm_l.T(1:3,4); 0 0 0 1];
+arm_l.T(1:3,1:3) = R;
+
+% [forearm_l]--> wrist_l -- [hand_l]
+P = wrist_l.translation_parent;
+R1 = Rot(elbow_l.axis(1:3,1), q(dofMap('elbow_flex_l')));
+R2 = Rot(elbow_l.axis(1:3,2), q(dofMap('elbow_rot_l')));
+R = R*R1*R2;
+hand_l.T = [R, R*P+forearm_l.T(1:3,4); 0 0 0 1];
+forearm.T(1:3,1:3) = R;
+
+R = R*Rot(wrist_l.axis(1:3,1), q(dofMap('wrist_flex_l')));
+hand_l.T(1:3,1:3) = R;
+
+
+% --- Marker position calculation --- %
+% 1. markers attached to torso
+location = eval(Sternum.attachedBody).T * [Sternum.deviation; 1];
+Sternum.location = location(1:3);
+location = eval(LAcromium.attachedBody).T * [LAcromium.deviation; 1];
+LAcromium.location = location(1:3);
+location = eval(TopHead.attachedBody).T * [TopHead.deviation; 1];
+TopHead.location = location(1:3);
+location = eval(RASIS.attachedBody).T * [RASIS.deviation; 1];
+RASIS.location = location(1:3);
+location = eval(LASIS.attachedBody).T * [LASIS.deviation; 1];
+LASIS.location = location(1:3);
+location = eval(VSacral.attachedBody).T * [VSacral.deviation; 1];
+VSacral.location = location(1:3);
+location = eval(RThighUpper.attachedBody).T * [RThighUpper.deviation; 1];
+RThighUpper.location = location(1:3);
+location = eval(RThighFront.attachedBody).T * [RThighFront.deviation; 1];
+RThighFront.location = location(1:3);
+location = eval(RThighRear.attachedBody).T * [RThighRear.deviation; 1];
+RThighRear.location = location(1:3);
+location = eval(RKneeLat.attachedBody).T * [RKneeLat.deviation; 1];
+RKneeLat.location = location(1:3);
+location = eval(RKneeMed.attachedBody).T * [RKneeMed.deviation; 1];
+RKneeMed.location = location(1:3);
+location = eval(RShankUpper.attachedBody).T * [RShankUpper.deviation; 1];
+RShankUpper.location = location(1:3);
+location = eval(RShankFront.attachedBody).T * [RShankFront.deviation; 1];
+RShankFront.location = location(1:3);
+location = eval(RShankRear.attachedBody).T * [RShankRear.deviation; 1];
+RShankRear.location = location(1:3);
+location = eval(RAnkleLat.attachedBody).T * [RAnkleLat.deviation; 1];
+RAnkleLat.location = location(1:3);
+location = eval(RAnkleMed.attachedBody).T * [RAnkleMed.deviation; 1];
+RAnkleMed.location = location(1:3);
+location = eval(RHeel.attachedBody).T * [RHeel.deviation; 1];
+RHeel.location = location(1:3);
+location = eval(RMidfootSup.attachedBody).T * [RMidfootSup.deviation; 1];
+RMidfootSup.location = location(1:3);
+location = eval(RMidfootLat.attachedBody).T * [RMidfootLat.deviation; 1];
+RMidfootLat.location = location(1:3);
+location = eval(RMidToeLat.attachedBody).T * [RMidToeLat.deviation; 1];
+RMidToeLat.location = location(1:3);
+location = eval(RMidToeMed.attachedBody).T * [RMidToeMed.deviation; 1];
+RMidToeMed.location = location(1:3);
+location = eval(RMidToeTip.attachedBody).T * [RMidToeTip.deviation; 1];
+RMidToeTip.location = location(1:3);
+
+location = eval(LThighUpper.attachedBody).T * [LThighUpper.deviation; 1];
+LThighUpper.location = location(1:3);
+location = eval(LThighFront.attachedBody).T * [LThighFront.deviation; 1];
+LThighFront.location = location(1:3);
+location = eval(LThighRear.attachedBody).T * [LThighRear.deviation; 1];
+LThighRear.location = location(1:3);
+location = eval(LKneeLat.attachedBody).T * [LKneeLat.deviation; 1];
+LKneeLat.location = location(1:3);
+location = eval(LKneeMed.attachedBody).T * [LKneeMed.deviation; 1];
+LKneeMed.location = location(1:3);
+location = eval(LShankUpper.attachedBody).T * [LShankUpper.deviation; 1];
+LShankUpper.location = location(1:3);
+location = eval(LShankFront.attachedBody).T * [LShankFront.deviation; 1];
+LShankFront.location = location(1:3);
+location = eval(LShankRear.attachedBody).T * [LShankRear.deviation; 1];
+LShankRear.location = location(1:3);
+location = eval(LAnkleLat.attachedBody).T * [LAnkleLat.deviation; 1];
+LAnkleLat.location = location(1:3);
+location = eval(LAnkleMed.attachedBody).T * [LAnkleMed.deviation; 1];
+LAnkleMed.location = location(1:3);
+location = eval(LHeel.attachedBody).T * [LHeel.deviation; 1];
+LHeel.location = location(1:3);
+location = eval(LMidfootSup.attachedBody).T * [LMidfootSup.deviation; 1];
+LMidfootSup.location = location(1:3);
+location = eval(LMidfootLat.attachedBody).T * [LMidfootLat.deviation; 1];
+LMidfootLat.location = location(1:3);
+location = eval(LMidToeLat.attachedBody).T * [LMidToeLat.deviation; 1];
+LMidToeLat.location = location(1:3);
+location = eval(LMidToeMed.attachedBody).T * [LMidToeMed.deviation; 1];
+LMidToeMed.location = location(1:3);
+location = eval(LMidToeTip.attachedBody).T * [LMidToeTip.deviation; 1];
+LMidToeTip.location = location(1:3);
+
+
+scaleFactor.pelvis = norm(markerPos_input(markerInputMap('RASIS'),:) - markerPos_input(markerInputMap('LASIS'),:)) / norm(RASIS.location - LASIS.location);
+scaleFactor.femur_r = norm(markerPos_input(markerInputMap('RASIS'),:) - markerPos_input(markerInputMap('RKneeLat'),:)) / norm(RASIS.location - RKneeLat.location);
+scaleFactor.femur_l = norm(markerPos_input(markerInputMap('LASIS'),:) - markerPos_input(markerInputMap('LKneeLat'),:)) / norm(LASIS.location - LKneeLat.location);
+scaleFactor.tibia_r = norm(markerPos_input(markerInputMap('RKneeLat'),:) - markerPos_input(markerInputMap('RAnkleLat'),:)) / norm(RKneeLat.location - RAnkleLat.location);
+scaleFactor.tibia_l = norm(markerPos_input(markerInputMap('LKneeLat'),:) - markerPos_input(markerInputMap('LAnkleLat'),:)) / norm(LKneeLat.location - LAnkleLat.location);
+scaleFactor.foot_r = norm(markerPos_input(markerInputMap('RHeel'),:) - markerPos_input(markerInputMap('RToeTip'),:)) / norm(RHeel.location - RMidToeTip.location);
+scaleFactor.foot_l = norm(markerPos_input(markerInputMap('LHeel'),:) - markerPos_input(markerInputMap('LToeTip'),:)) / norm(LHeel.location - LMidToeTip.location);
+scaleFactor.torso = norm(markerPos_input(markerInputMap('VSacral'),:) - markerPos_input(markerInputMap('Sternum'),:)) / norm(VSacral.location - Sternum.location);
+scaleFactor.Head = norm(markerPos_input(markerInputMap('TopHead'),:) - markerPos_input(markerInputMap('Sternum'),:)) / norm(TopHead.location - Sternum.location);
+
 
 %% Create Canvas
+
 screenSize = get(0, 'ScreenSize');
 width = screenSize(3) * 0.8;
 left = screenSize(3) * 0.1;
@@ -296,8 +563,8 @@ bottom = screenSize(4) * 0.1;
 height = screenSize(4) * 0.8;
 fig = figure('Position', [left bottom width height], 'Color', 'w');
 set(fig, 'DoubleBuffer', 'on');
-nextFrameTime = 0;
-timescale = 0.01;                         
+% nextFrameTime = 0;
+% timescale = 0.01;
 FramePerSec = 100;
 
 mov = VideoWriter(['SkeletonPoseAnimation_' char(datetime('today'))]);
@@ -305,8 +572,12 @@ movFrameRate = FramePerSec;
 mov.Quality = 100;
 open(mov);
 
-%% Loop Start: Reading IK inputs frame-by-frame
+clear width left bottom height fig FramePerSec screenSize
+
+%% Loop Start
 for i = 1 : npts
+    %% Calculate body positions according to IK input
+
     q = data(i,:);
     q(4:end) = deg2rad(q(4:end)); % joint angles: deg -> rad
     q = 0*q; q(dofMap('pelvis_ty')) = 0.93;
@@ -325,12 +596,12 @@ for i = 1 : npts
     pelvis.T(3,4) = q(dofMap('pelvis_tz'));
 
     % [pelvis]--> hip_r --[femur_r]
-    P = hip_r.translation_parent;
+    P = hip_r.translation_parent * scaleFactor.pelvis;
     R = eye(3);
     femur_r.T = [R, R*P+pelvis.T(1:3,4); 0 0 0 1];
 
     % [femur_r]--> knee_r --[tibia_r]
-    P = knee_r.translation_parent;
+    P = knee_r.translation_parent * scaleFactor.femur_r;
     R1 = Rot(hip_r.axis(1:3,1), q(dofMap('hip_flexion_r')));
     R2 = Rot(hip_r.axis(1:3,2), q(dofMap('hip_adduction_r')));
     R3 = Rot(hip_r.axis(1:3,3), q(dofMap('hip_rotation_r')));
@@ -339,7 +610,7 @@ for i = 1 : npts
     femur_r.T(1:3,1:3) = R;
 
     % [tibia_r]--> ankle_r --[foot_r]
-    P = ankle_r.translation_parent;
+    P = ankle_r.translation_parent * scaleFactor.tibia_r;
     R = R*Rot(knee_r.axis(1:3,1), q(dofMap('knee_flexion_r')));
     foot_r.T = [R, R*P+tibia_r.T(1:3,4); 0 0 0 1];
     tibia_r.T(1:3,1:3) = R;
@@ -351,12 +622,12 @@ for i = 1 : npts
 
     % ----- route 2 ----- %
     % [pelvis]--> hip_l --[femur_l]
-    P = hip_l.translation_parent;
+    P = hip_l.translation_parent * scaleFactor.pelvis;
     R = eye(3);
     femur_l.T = [R, R*P+pelvis.T(1:3,4); 0 0 0 1];
 
     % [femur_l]--> knee_l --[tibia_l]
-    P = knee_l.translation_parent;
+    P = knee_l.translation_parent * scaleFactor.femur_l;
     R1 = Rot(hip_l.axis(1:3,1), q(dofMap('hip_flexion_l')));
     R2 = Rot(hip_l.axis(1:3,2), q(dofMap('hip_adduction_l')));
     R3 = Rot(hip_l.axis(1:3,3), q(dofMap('hip_rotation_l')));
@@ -365,7 +636,7 @@ for i = 1 : npts
     femur_l.T(1:3,1:3) = R;
 
     % [tibia_l]--> ankle_l --[foot_l]
-    P = ankle_l.translation_parent;
+    P = ankle_l.translation_parent * scaleFactor.tibia_l;
     R = R*Rot(knee_l.axis(1:3,1), q(dofMap('knee_flexion_l')));
     foot_l.T = [R, R*P+tibia_l.T(1:3,4); 0 0 0 1];
     tibia_l.T(1:3,1:3) = R;
@@ -378,12 +649,12 @@ for i = 1 : npts
     % ----- route 3 ----- %
     % 3. [pelvis]--> back --[torso]--> neck --[head]
     % [pelvis]--> back --[torso]
-    P = back.translation_parent;
+    P = back.translation_parent * scaleFactor.torso;
     R = eye(3);
     torso.T = [R, R*P+pelvis.T(1:3,4); 0 0 0 1];
 
     % [torso]--> neck --[head]
-    P = neck.translation_parent;
+    P = neck.translation_parent * scaleFactor.torso;
     R1 = Rot(back.axis(1:3,1), q(dofMap('lumbar_extension')));
     R2 = Rot(back.axis(1:3,2), q(dofMap('lumbar_bending')));
     R3 = Rot(back.axis(1:3,3), q(dofMap('lumbar_rotation')));
@@ -400,12 +671,12 @@ for i = 1 : npts
     % ----- route 4 ----- %
     % 4. [torso]--> shoulder_r --[arm_r]--> elbow_r --[forearm_r]--> wrist_r --[hand_r]
     % [torso]--> shoulder_r --[arm_r]
-    P = shoulder_r.translation_parent;
+    P = shoulder_r.translation_parent * scaleFactor.torso;
     R = torso.T(1:3,1:3);
     arm_r.T = [R, R*P+torso.T(1:3,4); 0 0 0 1];
 
     % [arm_r]--> elbow_r -- [forearm_r]
-    P = elbow_r.translation_parent;
+    P = elbow_r.translation_parent * scaleFactor.height;
     R1 = Rot(shoulder_r.axis(1:3,1), q(dofMap('arm_flex_r')));
     R2 = Rot(shoulder_r.axis(1:3,2), q(dofMap('arm_add_r')));
     R3 = Rot(shoulder_r.axis(1:3,2), q(dofMap('arm_rot_r')));
@@ -414,7 +685,7 @@ for i = 1 : npts
     arm_r.T(1:3,1:3) = R;
 
     % [forearm_r]--> wrist_r -- [hand_r]
-    P = wrist_r.translation_parent;
+    P = wrist_r.translation_parent * scaleFactor.height;
     R1 = Rot(elbow_r.axis(1:3,1), q(dofMap('elbow_flex_r')));
     R2 = Rot(elbow_r.axis(1:3,2), q(dofMap('elbow_rot_r')));
     R = R*R1*R2;
@@ -427,12 +698,12 @@ for i = 1 : npts
     % ----- route 5 ----- %
     % 5. [torso]--> shoulder_l --[arm_l]--> elbow_l --[forearm_l]--> wrist_l --[hand_l]
     % [torso]--> shoulder_l --[arm_l]
-    P = shoulder_l.translation_parent;
+    P = shoulder_l.translation_parent * scaleFactor.torso;
     R = torso.T(1:3,1:3);
     arm_l.T = [R, R*P+torso.T(1:3,4); 0 0 0 1];
 
     % [arm_l]--> elbow_l -- [forearm_l]
-    P = elbow_l.translation_parent;
+    P = elbow_l.translation_parent * scaleFactor.height;
     R1 = Rot(shoulder_l.axis(1:3,1), q(dofMap('arm_flex_l')));
     R2 = Rot(shoulder_l.axis(1:3,2), q(dofMap('arm_add_l')));
     R3 = Rot(shoulder_l.axis(1:3,2), q(dofMap('arm_rot_l')));
@@ -441,7 +712,7 @@ for i = 1 : npts
     arm_l.T(1:3,1:3) = R;
 
     % [forearm_l]--> wrist_l -- [hand_l]
-    P = wrist_l.translation_parent;
+    P = wrist_l.translation_parent * scaleFactor.height;
     R1 = Rot(elbow_l.axis(1:3,1), q(dofMap('elbow_flex_l')));
     R2 = Rot(elbow_l.axis(1:3,2), q(dofMap('elbow_rot_l')));
     R = R*R1*R2;
@@ -450,6 +721,8 @@ for i = 1 : npts
 
     R = R*Rot(wrist_l.axis(1:3,1), q(dofMap('wrist_flex_l')));
     hand_l.T(1:3,1:3) = R;
+
+    %% Calculate marker positions according to IK input
 
     % --- Marker position calculation --- %
     % 1. markers attached to torso
@@ -497,7 +770,7 @@ for i = 1 : npts
     RMidToeMed.location = location(1:3);
     location = eval(RMidToeTip.attachedBody).T * [RMidToeTip.deviation; 1];
     RMidToeTip.location = location(1:3);
-    
+
     location = eval(LThighUpper.attachedBody).T * [LThighUpper.deviation; 1];
     LThighUpper.location = location(1:3);
     location = eval(LThighFront.attachedBody).T * [LThighFront.deviation; 1];
@@ -530,9 +803,9 @@ for i = 1 : npts
     LMidToeMed.location = location(1:3);
     location = eval(LMidToeTip.attachedBody).T * [LMidToeTip.deviation; 1];
     LMidToeTip.location = location(1:3);
-    
 
     %% plot
+    % skeleton points
     % disp(['pelvis---hip_r---knee_r---ankle_r: [' num2str(pelvis.T(1:3,4)'), ']---[' num2str(femur_r.T(1:3,4)') ']---[' num2str(tibia_r.T(1:3,4)') ']---[' num2str(foot_r.T(1:3,4)') ']']);
     % figure(1),
     hold off
@@ -546,7 +819,7 @@ for i = 1 : npts
         [torso.T(1,4) femur_r.T(1,4) tibia_r.T(1,4) foot_r.T(1,4)], ...
         [torso.T(2,4) femur_r.T(2,4) tibia_r.T(2,4) foot_r.T(2,4)], ...
         'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
-    
+
     plot3([torso.T(3,4) femur_l.T(3,4) tibia_l.T(3,4) foot_l.T(3,4)], ...
         [torso.T(1,4) femur_l.T(1,4) tibia_l.T(1,4) foot_l.T(1,4)], ...
         [torso.T(2,4) femur_l.T(2,4) tibia_l.T(2,4) foot_l.T(2,4)], ...
@@ -583,6 +856,7 @@ for i = 1 : npts
         [arm_r.T(2,4) arm_l.T(2,4) forearm_l.T(2,4) hand_l.T(2,4)], ...
         'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
 
+    % virtual marker points
     scatter3(Sternum.location(3), Sternum.location(1), Sternum.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LAcromium.location(3), LAcromium.location(1), LAcromium.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(TopHead.location(3), TopHead.location(1), TopHead.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
@@ -621,16 +895,18 @@ for i = 1 : npts
     scatter3(LMidToeLat.location(3), LMidToeLat.location(1), LMidToeLat.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LMidToeMed.location(3), LMidToeMed.location(1), LMidToeMed.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LMidToeTip.location(3), LMidToeTip.location(1), LMidToeTip.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
+    % experimental marker points
+    scatter3(markerPos_input(:,3), markerPos_input(:,1), markerPos_input(:,2), 10, 'filled', 'MarkerFaceColor', [0.2 0.9 0.6], 'MarkerEdgeColor', [0.2 0.9 0.6])
 
-    axis equal
-    xlim([-1 1]), ylim([-1.5 1.5]), zlim([0 2]);
+    axis equal, view(45,30)
+    xlim([-1 1]), ylim([-1.5 1.5]), zlim([-0.5 2]);
     xlabel('z'), ylabel('x'), zlabel('y');
     drawnow;
     F = getframe(gcf);
     writeVideo(mov, F);
 
 end
-
+clear F location i R R1 R2 R3 P
 % disp(['pelvis_tx: ', num2str(q(dofMap('pelvis_tx')))])
 % disp(['pelvis_ty: ', num2str(q(dofMap('pelvis_ty')))])
 % disp(['pelvis_tz: ', num2str(q(dofMap('pelvis_tz')))])
