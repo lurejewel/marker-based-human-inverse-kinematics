@@ -168,6 +168,23 @@ wrist_l = JointDef('translation_parent', [-0.008797 -0.235841 -0.01361]', ...
     'defaultValue', dofs('wrist_flex_l').defaultValue, ...
     'defaultSpeed', dofs('wrist_flex_l').defaultSpeed);
 clear dofs
+save joints.mat ground_pelvis hip_r hip_l knee_r knee_l ankle_r ankle_l back neck shoulder_r shoulder_l elbow_r elbow_l wrist_r wrist_l
+
+dofMap = containers.Map({'pelvis_tx', 'pelvis_ty', 'pelvis_tz', ...
+    'hip_flexion_r', 'hip_adduction_r', 'hip_rotation_r', ...
+    'hip_flexion_l', 'hip_adduction_l', 'hip_rotation_l', ...
+    'knee_flexion_r', 'knee_flexion_l', ...
+    'ankle_dorsiflexion_r', 'ankle_adduction_r', ...
+    'ankle_dorsiflexion_l', 'ankle_adduction_l', ...
+    'lumbar_extension', 'lumbar_bending', 'lumbar_rotation', ...
+    'neck_extension', 'neck_bending', 'neck_rotation', ...
+    'arm_flex_r', 'arm_add_r', 'arm_rot_r', ...
+    'arm_flex_l', 'arm_add_l', 'arm_rot_l', ...
+    'elbow_flex_r', 'elbow_rot_r', ...
+    'elbow_flex_l', 'elbow_rot_l', ...
+    'wrist_flex_r', 'wrist_flex_l'}, num2cell(1:33));
+
+save dofMap.mat dofMap
 
 %% Define bodies of the model
 
@@ -212,7 +229,9 @@ forearm_r.mass = forearm_r.mass * scaleFactor.mass;
 forearm_l.mass = forearm_l.mass * scaleFactor.mass;
 hand_r.mass = hand_r.mass * scaleFactor.mass;
 hand_l.mass = hand_l.mass * scaleFactor.mass;
+
 clear BodyHeight BodyMass TotalBodyMass
+save bodies.mat ground pelvis femur_r femur_l tibia_r tibia_l foot_r foot_l torso head arm_r arm_l forearm_r forearm_l hand_r hand_l
 
 %% Define Markers
 Sternum = MarkerDef('attachedBody', 'torso', 'deviation', [0.07 0.3 0]');
@@ -254,38 +273,7 @@ LMidToeLat = MarkerDef('attachedBody', 'foot_l', 'deviation', [0.19 0 -0.065]');
 LMidToeMed = MarkerDef('attachedBody', 'foot_l', 'deviation', [0.19 0.005 0.04]');
 LMidToeTip = MarkerDef('attachedBody', 'foot_l', 'deviation', [0.26 0.005 0]');
 
-%% Read IK input
-
-dofMap = containers.Map({'pelvis_tx', 'pelvis_ty', 'pelvis_tz', ...
-    'hip_flexion_r', 'hip_adduction_r', 'hip_rotation_r', ...
-    'hip_flexion_l', 'hip_adduction_l', 'hip_rotation_l', ...
-    'knee_flexion_r', 'knee_flexion_l', ...
-    'ankle_dorsiflexion_r', 'ankle_adduction_r', ...
-    'ankle_dorsiflexion_l', 'ankle_adduction_l', ...
-    'lumbar_extension', 'lumbar_bending', 'lumbar_rotation', ...
-    'neck_extension', 'neck_bending', 'neck_rotation', ...
-    'arm_flex_r', 'arm_add_r', 'arm_rot_r', ...
-    'arm_flex_l', 'arm_add_l', 'arm_rot_l', ...
-    'elbow_flex_r', 'elbow_rot_r', ...
-    'elbow_flex_l', 'elbow_rot_l', ...
-    'wrist_flex_r', 'wrist_flex_l'}, num2cell(1:33));
-
-% position input
-import org.opensim.modeling.*
-motFile = Storage('IK_input.mot', false);
-labels = motFile.getColumnLabels;
-numLabels = labels.getSize; % including the label 'time'
-npts = motFile.getSize;
-time = nan(npts, 1);
-data = nan(npts, numLabels-1);
-for i = 1 : npts
-    state = motFile.getStateVector(i-1);
-    time(i) = state.getTime;
-    for j = 1 : dofMap.length
-        data(i,j) = state.getData.getitem(j-1);
-    end
-end
-clear state i
+save markers.mat Sternum LAcromium TopHead RASIS LASIS VSacral RThighUpper RThighFront RThighRear RKneeLat RKneeMed RShankUpper RShankFront RShankRear RAnkleLat RAnkleMed RHeel RMidfootSup RMidfootLat RMidToeLat RMidToeMed RMidToeTip LThighUpper LThighFront LThighRear LKneeLat LKneeMed LShankUpper LShankFront LShankRear LAnkleLat LAnkleMed LHeel LMidfootSup LMidfootLat LMidToeLat LMidToeMed LMidToeTip
 
 %% Read static TRC input (markers)
 
@@ -313,8 +301,9 @@ markerInputMap = containers.Map({'RASIS', 'LASIS', 'VSacral', 'RThighUpper', ...
     'Sternum', 'RAcromium', 'LAcromium', 'RBicep', 'LBicep', 'RElbow', ...
     'LElbow', 'RWristMed', 'RWristLat', 'LWristMed', 'LWristLat', ...
     'RToeLat', 'RToeMed', 'LToeLat', 'LToeMed', 'RTemple', ...
-    'LTemple', 'TopHead'}, num2cell(1:49));
+    'LTemple', 'TopHead'}, num2cell(1:markerNum));
 clear tempPos markerNum currentMarkerPos i frame
+save markerInputMap.mat markerInputMap
 
 %% Scale bone length from static pose
 % NOTE THAT THIS PROCEDURE SHOULD BE EXECUTED ITERATIVELY UNTIL SCALE
@@ -553,6 +542,7 @@ scaleFactor.foot_l = norm(markerPos_input(markerInputMap('LHeel'),:) - markerPos
 scaleFactor.torso = norm(markerPos_input(markerInputMap('VSacral'),:) - markerPos_input(markerInputMap('Sternum'),:)) / norm(VSacral.location - Sternum.location);
 scaleFactor.Head = norm(markerPos_input(markerInputMap('TopHead'),:) - markerPos_input(markerInputMap('Sternum'),:)) / norm(TopHead.location - Sternum.location);
 
+save scaleFactor.mat scaleFactor
 
 %% Create Canvas
 
@@ -578,7 +568,7 @@ clear width left bottom height fig FramePerSec screenSize
 for i = 1 : npts
     %% Calculate body positions according to IK input
 
-    q = data(i,:);
+    % q = data(i,:);
     q(4:end) = deg2rad(q(4:end)); % joint angles: deg -> rad
     q = 0*q; q(dofMap('pelvis_ty')) = 0.93;
 
