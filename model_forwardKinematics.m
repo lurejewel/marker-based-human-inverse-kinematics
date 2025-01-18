@@ -570,7 +570,7 @@ for i = 1 : npts
 
     % q = data(i,:);
     q(4:end) = deg2rad(q(4:end)); % joint angles: deg -> rad
-    q = 0*q; q(dofMap('pelvis_ty')) = 0.93;
+    q = 0*q; q(dofMap('pelvis_ty')) = 0.95;
 
     % Topology view:
     % 1. [ground] (ROOT) --- ground_pelvis --[pelvis]--> hip_r --[femur_r]--> knee_r --[tibia_r]--> ankle_r --[foot_r]
