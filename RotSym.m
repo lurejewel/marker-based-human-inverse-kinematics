@@ -1,5 +1,5 @@
 function R = RotSym(f, q)
-% general rotation transformation
+% general rotation transformation, symbolic version
 % f: rotation axis, 3x1
 % q: rotation angle
 f = sym(f);

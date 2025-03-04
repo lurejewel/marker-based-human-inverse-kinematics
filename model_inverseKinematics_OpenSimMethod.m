@@ -14,7 +14,7 @@ import org.opensim.modeling.*
 
 load scaleFactor.mat, load markers.mat, load bodies.mat, load joints.mat
 load dofMap.mat, load markerInputMap.mat
-syms q [33 1] % 广义坐标（关节自由度）
+syms q [33 1] % generalized coordinates (degrees of freedom)
 
 %% Read walking TRC input (markers)
 
@@ -42,7 +42,7 @@ markerInputMap = containers.Map({'RASIS', 'LASIS', 'VSacral', 'RThighUpper', ...
 
 clear tempPos i frame currentMarkerPos
 
-%% Calculate body positions according to q
+%% Calculate virtual body positions according to q
 
 % Topology view:
 % 1. [ground] (ROOT) --- ground_pelvis --[pelvis]--> hip_r --[femur_r]--> knee_r --[tibia_r]--> ankle_r --[foot_r]
@@ -187,22 +187,31 @@ hand_l.T(1:3,1:3) = R;
 
 clear P R R1 R2 R3
 
-%% Calculate marker positions according to q
+%% Calculate virtual marker positions according to q
 
-% --- Marker position calculation --- %
 % 1. markers attached to torso
 location = eval(Sternum.attachedBody).T * [Sternum.deviation; 1];
 Sternum.location = location(1:3);
+location = eval(RAcromium.attachedBody).T * [RAcromium.deviation; 1];
+RAcromium.location = location(1:3);
 location = eval(LAcromium.attachedBody).T * [LAcromium.deviation; 1];
 LAcromium.location = location(1:3);
-location = eval(TopHead.attachedBody).T * [TopHead.deviation; 1];
-TopHead.location = location(1:3);
+
+% 2. markers attached to pelvis
 location = eval(RASIS.attachedBody).T * [RASIS.deviation; 1];
 RASIS.location = location(1:3);
 location = eval(LASIS.attachedBody).T * [LASIS.deviation; 1];
 LASIS.location = location(1:3);
-location = eval(VSacral.attachedBody).T * [VSacral.deviation; 1];
-VSacral.location = location(1:3);
+location = eval(RPSIS.attachedBody).T * [RPSIS.deviation; 1];
+RPSIS.location = location(1:3);
+location = eval(LPSIS.attachedBody).T * [LPSIS.deviation; 1];
+LPSIS.location = location(1:3);
+
+% 3. markers attached to femur, r/l
+location = eval(RTIB.attachedBody).T * [RTIB.deviation; 1];
+RTIB.location = location(1:3);
+location = eval(LTIB.attachedBody).T * [LTIB.deviation; 1];
+LTIB.location = location(1:3);
 location = eval(RThighUpper.attachedBody).T * [RThighUpper.deviation; 1];
 RThighUpper.location = location(1:3);
 location = eval(RThighFront.attachedBody).T * [RThighFront.deviation; 1];
@@ -213,29 +222,6 @@ location = eval(RKneeLat.attachedBody).T * [RKneeLat.deviation; 1];
 RKneeLat.location = location(1:3);
 location = eval(RKneeMed.attachedBody).T * [RKneeMed.deviation; 1];
 RKneeMed.location = location(1:3);
-location = eval(RShankUpper.attachedBody).T * [RShankUpper.deviation; 1];
-RShankUpper.location = location(1:3);
-location = eval(RShankFront.attachedBody).T * [RShankFront.deviation; 1];
-RShankFront.location = location(1:3);
-location = eval(RShankRear.attachedBody).T * [RShankRear.deviation; 1];
-RShankRear.location = location(1:3);
-location = eval(RAnkleLat.attachedBody).T * [RAnkleLat.deviation; 1];
-RAnkleLat.location = location(1:3);
-location = eval(RAnkleMed.attachedBody).T * [RAnkleMed.deviation; 1];
-RAnkleMed.location = location(1:3);
-location = eval(RHeel.attachedBody).T * [RHeel.deviation; 1];
-RHeel.location = location(1:3);
-location = eval(RMidfootSup.attachedBody).T * [RMidfootSup.deviation; 1];
-RMidfootSup.location = location(1:3);
-location = eval(RMidfootLat.attachedBody).T * [RMidfootLat.deviation; 1];
-RMidfootLat.location = location(1:3);
-location = eval(RMidToeLat.attachedBody).T * [RMidToeLat.deviation; 1];
-RMidToeLat.location = location(1:3);
-location = eval(RMidToeMed.attachedBody).T * [RMidToeMed.deviation; 1];
-RMidToeMed.location = location(1:3);
-location = eval(RMidToeTip.attachedBody).T * [RMidToeTip.deviation; 1];
-RMidToeTip.location = location(1:3);
-
 location = eval(LThighUpper.attachedBody).T * [LThighUpper.deviation; 1];
 LThighUpper.location = location(1:3);
 location = eval(LThighFront.attachedBody).T * [LThighFront.deviation; 1];
@@ -246,6 +232,18 @@ location = eval(LKneeLat.attachedBody).T * [LKneeLat.deviation; 1];
 LKneeLat.location = location(1:3);
 location = eval(LKneeMed.attachedBody).T * [LKneeMed.deviation; 1];
 LKneeMed.location = location(1:3);
+
+% 4. markers attached to tibia, r/l
+location = eval(RShankUpper.attachedBody).T * [RShankUpper.deviation; 1];
+RShankUpper.location = location(1:3);
+location = eval(RShankFront.attachedBody).T * [RShankFront.deviation; 1];
+RShankFront.location = location(1:3);
+location = eval(RShankRear.attachedBody).T * [RShankRear.deviation; 1];
+RShankRear.location = location(1:3);
+location = eval(RAnkleLat.attachedBody).T * [RAnkleLat.deviation; 1];
+RAnkleLat.location = location(1:3);
+location = eval(RAnkleMed.attachedBody).T * [RAnkleMed.deviation; 1];
+RAnkleMed.location = location(1:3);
 location = eval(LShankUpper.attachedBody).T * [LShankUpper.deviation; 1];
 LShankUpper.location = location(1:3);
 location = eval(LShankFront.attachedBody).T * [LShankFront.deviation; 1];
@@ -256,22 +254,48 @@ location = eval(LAnkleLat.attachedBody).T * [LAnkleLat.deviation; 1];
 LAnkleLat.location = location(1:3);
 location = eval(LAnkleMed.attachedBody).T * [LAnkleMed.deviation; 1];
 LAnkleMed.location = location(1:3);
+
+% 5. markers attached to foot, r/l
+location = eval(RHeel.attachedBody).T * [RHeel.deviation; 1];
+RHeel.location = location(1:3);
 location = eval(LHeel.attachedBody).T * [LHeel.deviation; 1];
 LHeel.location = location(1:3);
-location = eval(LMidfootSup.attachedBody).T * [LMidfootSup.deviation; 1];
-LMidfootSup.location = location(1:3);
-location = eval(LMidfootLat.attachedBody).T * [LMidfootLat.deviation; 1];
-LMidfootLat.location = location(1:3);
-location = eval(LMidToeLat.attachedBody).T * [LMidToeLat.deviation; 1];
-LMidToeLat.location = location(1:3);
-location = eval(LMidToeMed.attachedBody).T * [LMidToeMed.deviation; 1];
-LMidToeMed.location = location(1:3);
-location = eval(LMidToeTip.attachedBody).T * [LMidToeTip.deviation; 1];
-LMidToeTip.location = location(1:3);
+location = eval(RToeLat.attachedBody).T * [RToeLat.deviation; 1];
+RToeLat.location = location(1:3);
+location = eval(LToeLat.attachedBody).T * [LToeLat.deviation; 1];
+LToeLat.location = location(1:3);
+location = eval(RToeTip.attachedBody).T * [RToeTip.deviation; 1];
+RToeTip.location = location(1:3);
+location = eval(LToeTip.attachedBody).T * [LToeTip.deviation; 1];
+LToeTip.location = location(1:3);
+
+% 6. markers attached to arm, r/l
+location = eval(RBicep.attachedBody).T * [RBicep.deviation; 1];
+RBicep.location = location(1:3);
+location = eval(LBicep.attachedBody).T * [LBicep.deviation; 1];
+LBicep.location = location(1:3);
+location = eval(RElbow.attachedBody).T * [RElbow.deviation; 1];
+RElbow.location = location(1:3);
+location = eval(LElbow.attachedBody).T * [LElbow.deviation; 1];
+LElbow.location = location(1:3);
+
+% 7. markers attached to forearm
+location = eval(RFAsuperior.attachedBody).T * [RFAsuperior.deviation; 1];
+RFAsuperior.location = location(1:3);
+location = eval(LFAsuperior.attachedBody).T * [LFAsuperior.deviation; 1];
+LFAsuperior.location = location(1:3);
+location = eval(RWristLat.attachedBody).T * [RWristLat.deviation; 1];
+RWristLat.location = location(1:3);
+location = eval(LWristLat.attachedBody).T * [LWristLat.deviation; 1];
+LWristLat.location = location(1:3);
+location = eval(RWristMed.attachedBody).T * [RWristMed.deviation; 1];
+RWristMed.location = location(1:3);
+location = eval(LWristMed.attachedBody).T * [LWristMed.deviation; 1];
+LWristMed.location = location(1:3);
 
 clear location
 
-%% Loop: execute IK for every frame
+%% Loop: execute IK at every frame
 
 % --- error calculation configuration ---
 error = zeros(height(markerInputMap), 1); error = sym(error); % initialize position error: virtual marker v.s. experimental marker
@@ -299,10 +323,8 @@ for frame = 1 : height(markerPos_ref)
     % position errors (Euclidean distance)
     error(markerInputMap('Sternum')) = norm(Sternum.location - reshape(markerPos_ref(frame,markerInputMap('Sternum'),:),[3 1]));
     error(markerInputMap('LAcromium')) = norm(LAcromium.location - reshape(markerPos_ref(frame,markerInputMap('LAcromium'),:),[3 1]));
-    error(markerInputMap('TopHead')) = norm(TopHead.location - reshape(markerPos_ref(frame,markerInputMap('TopHead'),:),[3 1]));
     error(markerInputMap('RASIS')) = norm(RASIS.location - reshape(markerPos_ref(frame,markerInputMap('RASIS'),:),[3 1]));
     error(markerInputMap('LASIS')) = norm(LASIS.location - reshape(markerPos_ref(frame,markerInputMap('LASIS'),:),[3 1]));
-    error(markerInputMap('VSacral')) = norm(VSacral.location - reshape(markerPos_ref(frame,markerInputMap('VSacral'),:),[3 1]));
     error(markerInputMap('RThighUpper')) = norm(RThighUpper.location - reshape(markerPos_ref(frame,markerInputMap('RThighUpper'),:),[3 1]));
     error(markerInputMap('RThighFront')) = norm(RThighFront.location - reshape(markerPos_ref(frame,markerInputMap('RThighFront'),:),[3 1]));
     error(markerInputMap('RThighRear')) = norm(RThighRear.location - reshape(markerPos_ref(frame,markerInputMap('RThighRear'),:),[3 1]));
@@ -310,8 +332,8 @@ for frame = 1 : height(markerPos_ref)
     error(markerInputMap('RShankFront')) = norm(RShankFront.location - reshape(markerPos_ref(frame,markerInputMap('RShankFront'),:),[3 1]));
     error(markerInputMap('RShankRear')) = norm(RShankRear.location - reshape(markerPos_ref(frame,markerInputMap('RShankRear'),:),[3 1]));
     error(markerInputMap('RHeel')) = norm(RHeel.location - reshape(markerPos_ref(frame,markerInputMap('RHeel'),:),[3 1]));
-    error(markerInputMap('RMidfootSup')) = norm(RMidfootSup.location - reshape(markerPos_ref(frame,markerInputMap('RMidfootSup'),:),[3 1]));
-    error(markerInputMap('RMidfootLat')) = norm(RMidfootLat.location - reshape(markerPos_ref(frame,markerInputMap('RMidfootLat'),:),[3 1]));
+    error(markerInputMap('RToeTip')) = norm(RToeTip.location - reshape(markerPos_ref(frame,markerInputMap('RToeTip'),:),[3 1]));
+    error(markerInputMap('RToeLat')) = norm(RToeLat.location - reshape(markerPos_ref(frame,markerInputMap('RToeLat'),:),[3 1]));
     error(markerInputMap('LThighUpper')) = norm(LThighUpper.location - reshape(markerPos_ref(frame,markerInputMap('LThighUpper'),:),[3 1]));
     error(markerInputMap('LThighFront')) = norm(LThighFront.location - reshape(markerPos_ref(frame,markerInputMap('LThighFront'),:),[3 1]));
     error(markerInputMap('LThighRear')) = norm(LThighRear.location - reshape(markerPos_ref(frame,markerInputMap('LThighRear'),:),[3 1]));
@@ -319,11 +341,13 @@ for frame = 1 : height(markerPos_ref)
     error(markerInputMap('LShankFront')) = norm(LShankFront.location - reshape(markerPos_ref(frame,markerInputMap('LShankFront'),:),[3 1]));
     error(markerInputMap('LShankRear')) = norm(LShankRear.location - reshape(markerPos_ref(frame,markerInputMap('LShankRear'),:),[3 1]));
     error(markerInputMap('LHeel')) = norm(LHeel.location - reshape(markerPos_ref(frame,markerInputMap('LHeel'),:),[3 1]));
-    error(markerInputMap('LMidfootSup')) = norm(LMidfootSup.location - reshape(markerPos_ref(frame,markerInputMap('LMidfootSup'),:),[3 1]));
-    error(markerInputMap('LMidfootLat')) = norm(LMidfootLat.location - reshape(markerPos_ref(frame,markerInputMap('LMidfootLat'),:),[3 1]));
+    error(markerInputMap('LToeTip')) = norm(LToeTip.location - reshape(markerPos_ref(frame,markerInputMap('LToeTip'),:),[3 1]));
+    error(markerInputMap('LToeLat')) = norm(LToeLat.location - reshape(markerPos_ref(frame,markerInputMap('LToeLat'),:),[3 1]));
 
     Loss = weight * error;
-    % clear weight error
+    foot_index = [markerInputMap('RHeel') markerInputMap('RToeTip') markerInputMap('RToeLat') markerInputMap('LHeel') markerInputMap('LToeTip') markerInputMap('LToeLat')];
+    Loss_foot = weight(foot_index) * error(foot_index);
+    clear weight error foot_index
 
     %% Optimize q to minimize the marker position error
 
@@ -345,9 +369,30 @@ for frame = 1 : height(markerPos_ref)
         disp(['IK executing ... ' num2str(frame/height(markerPos_ref)*100) '%']);
     end
 
+    % %% Optimize ankle angles again
+    % 
+    % ankledof_index = [dofMap('ankle_dorsiflexion_r'), dofMap('ankle_adduction_r'), dofMap('ankle_dorsiflexion_l'), dofMap('ankle_adduction_l')];
+    % fun = matlabFunction(Loss_foot, "Vars", {q(ankledof_index)}); % optimization problem
+    % % take the values of generalized coordinates at former timestep as
+    % % initial guess
+    % if frame == 1
+    %     q0 = zeros(height(q(ankledof_index)), 1); initial position
+    % elseif frame > 1
+    %     q0 = ikResult(frame-1, ankledof_index)';
+    % end
+    % 
+    % % OPTIMIZATION
+    % q_ = fmincon(fun, q0, A, b, Aeq, beq, lb, ub, [], options);
+    % ikResult(frame,ankledof_index) = q_';
+    % 
+    % % real-time display
+    % if ~mod(frame, 10)
+    %     disp(['IK executing ... ' num2str(frame/height(markerPos_ref)*100) '%']);
+    % end
+
 end
 toc
-clear erro weight fun q0 A b Aeq beq lb ub Loss q q_ options
+clear error weight fun q0 A b Aeq beq lb ub Loss Loss_foot q q_ options ankledof_index
 
 %% Visualize the optimization results
 
@@ -370,7 +415,7 @@ open(mov);
 clear width left bottom height fig FramePerSec screenSize
 
 for frame = 1 : height(ikResult)
-%% Calculate body positions according to IK input
+    %% Calculate actual body poses according to IK input
 
     q = ikResult(frame,:);
 
@@ -514,22 +559,29 @@ for frame = 1 : height(ikResult)
     R = R*Rot(wrist_l.axis(1:3,1), q(dofMap('wrist_flex_l')));
     hand_l.T(1:3,1:3) = R;
 
-    %% Calculate marker positions according to IK input
+    %% Calculate virtual marker positions according to body poses and IK input
 
-    % --- Marker position calculation --- %
     % 1. markers attached to torso
     location = eval(Sternum.attachedBody).T * [Sternum.deviation; 1];
     Sternum.location = location(1:3);
+    location = eval(RAcromium.attachedBody).T * [RAcromium.deviation; 1];
+    RAcromium.location = location(1:3);
     location = eval(LAcromium.attachedBody).T * [LAcromium.deviation; 1];
     LAcromium.location = location(1:3);
-    location = eval(TopHead.attachedBody).T * [TopHead.deviation; 1];
-    TopHead.location = location(1:3);
+    % 2. markers attached to pelvis
     location = eval(RASIS.attachedBody).T * [RASIS.deviation; 1];
     RASIS.location = location(1:3);
     location = eval(LASIS.attachedBody).T * [LASIS.deviation; 1];
     LASIS.location = location(1:3);
-    location = eval(VSacral.attachedBody).T * [VSacral.deviation; 1];
-    VSacral.location = location(1:3);
+    location = eval(RPSIS.attachedBody).T * [RPSIS.deviation; 1];
+    RPSIS.location = location(1:3);
+    location = eval(LPSIS.attachedBody).T * [LPSIS.deviation; 1];
+    LPSIS.location = location(1:3);
+    % 3. markers attached to femur, r/l
+    location = eval(RTIB.attachedBody).T * [RTIB.deviation; 1];
+    RTIB.location = location(1:3);
+    location = eval(LTIB.attachedBody).T * [LTIB.deviation; 1];
+    LTIB.location = location(1:3);
     location = eval(RThighUpper.attachedBody).T * [RThighUpper.deviation; 1];
     RThighUpper.location = location(1:3);
     location = eval(RThighFront.attachedBody).T * [RThighFront.deviation; 1];
@@ -540,29 +592,6 @@ for frame = 1 : height(ikResult)
     RKneeLat.location = location(1:3);
     location = eval(RKneeMed.attachedBody).T * [RKneeMed.deviation; 1];
     RKneeMed.location = location(1:3);
-    location = eval(RShankUpper.attachedBody).T * [RShankUpper.deviation; 1];
-    RShankUpper.location = location(1:3);
-    location = eval(RShankFront.attachedBody).T * [RShankFront.deviation; 1];
-    RShankFront.location = location(1:3);
-    location = eval(RShankRear.attachedBody).T * [RShankRear.deviation; 1];
-    RShankRear.location = location(1:3);
-    location = eval(RAnkleLat.attachedBody).T * [RAnkleLat.deviation; 1];
-    RAnkleLat.location = location(1:3);
-    location = eval(RAnkleMed.attachedBody).T * [RAnkleMed.deviation; 1];
-    RAnkleMed.location = location(1:3);
-    location = eval(RHeel.attachedBody).T * [RHeel.deviation; 1];
-    RHeel.location = location(1:3);
-    location = eval(RMidfootSup.attachedBody).T * [RMidfootSup.deviation; 1];
-    RMidfootSup.location = location(1:3);
-    location = eval(RMidfootLat.attachedBody).T * [RMidfootLat.deviation; 1];
-    RMidfootLat.location = location(1:3);
-    location = eval(RMidToeLat.attachedBody).T * [RMidToeLat.deviation; 1];
-    RMidToeLat.location = location(1:3);
-    location = eval(RMidToeMed.attachedBody).T * [RMidToeMed.deviation; 1];
-    RMidToeMed.location = location(1:3);
-    location = eval(RMidToeTip.attachedBody).T * [RMidToeTip.deviation; 1];
-    RMidToeTip.location = location(1:3);
-
     location = eval(LThighUpper.attachedBody).T * [LThighUpper.deviation; 1];
     LThighUpper.location = location(1:3);
     location = eval(LThighFront.attachedBody).T * [LThighFront.deviation; 1];
@@ -573,6 +602,17 @@ for frame = 1 : height(ikResult)
     LKneeLat.location = location(1:3);
     location = eval(LKneeMed.attachedBody).T * [LKneeMed.deviation; 1];
     LKneeMed.location = location(1:3);
+    % 4. markers attached to tibia, r/l
+    location = eval(RShankUpper.attachedBody).T * [RShankUpper.deviation; 1];
+    RShankUpper.location = location(1:3);
+    location = eval(RShankFront.attachedBody).T * [RShankFront.deviation; 1];
+    RShankFront.location = location(1:3);
+    location = eval(RShankRear.attachedBody).T * [RShankRear.deviation; 1];
+    RShankRear.location = location(1:3);
+    location = eval(RAnkleLat.attachedBody).T * [RAnkleLat.deviation; 1];
+    RAnkleLat.location = location(1:3);
+    location = eval(RAnkleMed.attachedBody).T * [RAnkleMed.deviation; 1];
+    RAnkleMed.location = location(1:3);
     location = eval(LShankUpper.attachedBody).T * [LShankUpper.deviation; 1];
     LShankUpper.location = location(1:3);
     location = eval(LShankFront.attachedBody).T * [LShankFront.deviation; 1];
@@ -583,18 +623,41 @@ for frame = 1 : height(ikResult)
     LAnkleLat.location = location(1:3);
     location = eval(LAnkleMed.attachedBody).T * [LAnkleMed.deviation; 1];
     LAnkleMed.location = location(1:3);
+    % 5. markers attached to foot, r/l
+    location = eval(RHeel.attachedBody).T * [RHeel.deviation; 1];
+    RHeel.location = location(1:3);
     location = eval(LHeel.attachedBody).T * [LHeel.deviation; 1];
     LHeel.location = location(1:3);
-    location = eval(LMidfootSup.attachedBody).T * [LMidfootSup.deviation; 1];
-    LMidfootSup.location = location(1:3);
-    location = eval(LMidfootLat.attachedBody).T * [LMidfootLat.deviation; 1];
-    LMidfootLat.location = location(1:3);
-    location = eval(LMidToeLat.attachedBody).T * [LMidToeLat.deviation; 1];
-    LMidToeLat.location = location(1:3);
-    location = eval(LMidToeMed.attachedBody).T * [LMidToeMed.deviation; 1];
-    LMidToeMed.location = location(1:3);
-    location = eval(LMidToeTip.attachedBody).T * [LMidToeTip.deviation; 1];
-    LMidToeTip.location = location(1:3);
+    location = eval(RToeLat.attachedBody).T * [RToeLat.deviation; 1];
+    RToeLat.location = location(1:3);
+    location = eval(LToeLat.attachedBody).T * [LToeLat.deviation; 1];
+    LToeLat.location = location(1:3);
+    location = eval(RToeTip.attachedBody).T * [RToeTip.deviation; 1];
+    RToeTip.location = location(1:3);
+    location = eval(LToeTip.attachedBody).T * [LToeTip.deviation; 1];
+    LToeTip.location = location(1:3);
+    % 6. markers attached to arm, r/l
+    location = eval(RBicep.attachedBody).T * [RBicep.deviation; 1];
+    RBicep.location = location(1:3);
+    location = eval(LBicep.attachedBody).T * [LBicep.deviation; 1];
+    LBicep.location = location(1:3);
+    location = eval(RElbow.attachedBody).T * [RElbow.deviation; 1];
+    RElbow.location = location(1:3);
+    location = eval(LElbow.attachedBody).T * [LElbow.deviation; 1];
+    LElbow.location = location(1:3);
+    % 7. markers attached to forearm
+    location = eval(RFAsuperior.attachedBody).T * [RFAsuperior.deviation; 1];
+    RFAsuperior.location = location(1:3);
+    location = eval(LFAsuperior.attachedBody).T * [LFAsuperior.deviation; 1];
+    LFAsuperior.location = location(1:3);
+    location = eval(RWristLat.attachedBody).T * [RWristLat.deviation; 1];
+    RWristLat.location = location(1:3);
+    location = eval(LWristLat.attachedBody).T * [LWristLat.deviation; 1];
+    LWristLat.location = location(1:3);
+    location = eval(RWristMed.attachedBody).T * [RWristMed.deviation; 1];
+    RWristMed.location = location(1:3);
+    location = eval(LWristMed.attachedBody).T * [LWristMed.deviation; 1];
+    LWristMed.location = location(1:3);
 
     %% plot
     % skeleton points
@@ -611,7 +674,6 @@ for frame = 1 : height(ikResult)
         [torso.T(1,4) femur_r.T(1,4) tibia_r.T(1,4) foot_r.T(1,4)], ...
         [torso.T(2,4) femur_r.T(2,4) tibia_r.T(2,4) foot_r.T(2,4)], ...
         'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
-
     plot3([torso.T(3,4) femur_l.T(3,4) tibia_l.T(3,4) foot_l.T(3,4)], ...
         [torso.T(1,4) femur_l.T(1,4) tibia_l.T(1,4) foot_l.T(1,4)], ...
         [torso.T(2,4) femur_l.T(2,4) tibia_l.T(2,4) foot_l.T(2,4)], ...
@@ -620,41 +682,40 @@ for frame = 1 : height(ikResult)
         [torso.T(1,4) femur_l.T(1,4) tibia_l.T(1,4) foot_l.T(1,4)], ...
         [torso.T(2,4) femur_l.T(2,4) tibia_l.T(2,4) foot_l.T(2,4)], ...
         'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
-    % disp(['pelvis---torso---head: [' num2str(pelvis.T(1:3,4)'), ']---[' num2str(torso.T(1:3,4)') ']---[' num2str(head.T(1:3,4)') ']']);
-    plot3([torso.T(3,4) torso.T(3,4) head.T(3,4)], ...
-        [torso.T(1,4) torso.T(1,4) head.T(1,4)], ...
-        [torso.T(2,4) torso.T(2,4) head.T(2,4)], ...
-        'LineWidth', 2, 'Color', 'k');
-    scatter3([torso.T(3,4) torso.T(3,4) head.T(3,4)], ...
-        [torso.T(1,4) torso.T(1,4) head.T(1,4)], ...
-        [torso.T(2,4) torso.T(2,4) head.T(2,4)], ...
-        'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
-    % disp(['arm_r---forearm_r---hand_r: [' num2str(torso.T(1:3,4)'), ']---[' num2str(arm_r.T(1:3,4)') ']---[' num2str(forearm_r.T(1:3,4)') ']---[' num2str(hand_r.T(1:3,4)') ']']);
-    plot3([arm_r.T(3,4) forearm_r.T(3,4) hand_r.T(3,4)], ...
-        [arm_r.T(1,4) forearm_r.T(1,4) hand_r.T(1,4)], ...
-        [arm_r.T(2,4) forearm_r.T(2,4) hand_r.T(2,4)], ...
-        'LineWidth', 2, 'Color', 'k');
-    scatter3([arm_r.T(3,4) forearm_r.T(3,4) hand_r.T(3,4)], ...
-        [arm_r.T(1,4) forearm_r.T(1,4) hand_r.T(1,4)], ...
-        [arm_r.T(2,4) forearm_r.T(2,4) hand_r.T(2,4)], ...
-        'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
-    % disp(['torso---arm_l---forearm_l---hand_l: [' num2str(torso.T(1:3,4)'), ']---[' num2str(arm_l.T(1:3,4)') ']---[' num2str(forearm_l.T(1:3,4)') ']---[' num2str(hand_l.T(1:3,4)') ']']);
-    plot3([arm_r.T(3,4) arm_l.T(3,4) forearm_l.T(3,4) hand_l.T(3,4)], ...
-        [arm_r.T(1,4) arm_l.T(1,4) forearm_l.T(1,4) hand_l.T(1,4)], ...
-        [arm_r.T(2,4) arm_l.T(2,4) forearm_l.T(2,4) hand_l.T(2,4)], ...
-        'LineWidth', 2, 'Color', 'k');
-    scatter3([arm_r.T(3,4) arm_l.T(3,4) forearm_l.T(3,4) hand_l.T(3,4)], ...
-        [arm_r.T(1,4) arm_l.T(1,4) forearm_l.T(1,4) hand_l.T(1,4)], ...
-        [arm_r.T(2,4) arm_l.T(2,4) forearm_l.T(2,4) hand_l.T(2,4)], ...
-        'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
+    % % disp(['pelvis---torso---head: [' num2str(pelvis.T(1:3,4)'), ']---[' num2str(torso.T(1:3,4)') ']---[' num2str(head.T(1:3,4)') ']']);
+    % plot3([torso.T(3,4) torso.T(3,4) head.T(3,4)], ...
+    %     [torso.T(1,4) torso.T(1,4) head.T(1,4)], ...
+    %     [torso.T(2,4) torso.T(2,4) head.T(2,4)], ...
+    %     'LineWidth', 2, 'Color', 'k');
+    % scatter3([torso.T(3,4) torso.T(3,4) head.T(3,4)], ...
+    %     [torso.T(1,4) torso.T(1,4) head.T(1,4)], ...
+    %     [torso.T(2,4) torso.T(2,4) head.T(2,4)], ...
+    %     'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
+    % % disp(['arm_r---forearm_r---hand_r: [' num2str(torso.T(1:3,4)'), ']---[' num2str(arm_r.T(1:3,4)') ']---[' num2str(forearm_r.T(1:3,4)') ']---[' num2str(hand_r.T(1:3,4)') ']']);
+    % plot3([arm_r.T(3,4) forearm_r.T(3,4) hand_r.T(3,4)], ...
+    %     [arm_r.T(1,4) forearm_r.T(1,4) hand_r.T(1,4)], ...
+    %     [arm_r.T(2,4) forearm_r.T(2,4) hand_r.T(2,4)], ...
+    %     'LineWidth', 2, 'Color', 'k');
+    % scatter3([arm_r.T(3,4) forearm_r.T(3,4) hand_r.T(3,4)], ...
+    %     [arm_r.T(1,4) forearm_r.T(1,4) hand_r.T(1,4)], ...
+    %     [arm_r.T(2,4) forearm_r.T(2,4) hand_r.T(2,4)], ...
+    %     'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
+    % % disp(['torso---arm_l---forearm_l---hand_l: [' num2str(torso.T(1:3,4)'), ']---[' num2str(arm_l.T(1:3,4)') ']---[' num2str(forearm_l.T(1:3,4)') ']---[' num2str(hand_l.T(1:3,4)') ']']);
+    % plot3([arm_r.T(3,4) arm_l.T(3,4) forearm_l.T(3,4) hand_l.T(3,4)], ...
+    %     [arm_r.T(1,4) arm_l.T(1,4) forearm_l.T(1,4) hand_l.T(1,4)], ...
+    %     [arm_r.T(2,4) arm_l.T(2,4) forearm_l.T(2,4) hand_l.T(2,4)], ...
+    %     'LineWidth', 2, 'Color', 'k');
+    % scatter3([arm_r.T(3,4) arm_l.T(3,4) forearm_l.T(3,4) hand_l.T(3,4)], ...
+    %     [arm_r.T(1,4) arm_l.T(1,4) forearm_l.T(1,4) hand_l.T(1,4)], ...
+    %     [arm_r.T(2,4) arm_l.T(2,4) forearm_l.T(2,4) hand_l.T(2,4)], ...
+    %     'LineWidth', 2, 'MarkerFaceColor',[0.8 0.2 0.2], 'MarkerEdgeColor',[0.8 0 0]);
 
     % virtual marker points
     scatter3(Sternum.location(3), Sternum.location(1), Sternum.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
+    scatter3(RAcromium.location(3), RAcromium.location(1), RAcromium.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LAcromium.location(3), LAcromium.location(1), LAcromium.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(TopHead.location(3), TopHead.location(1), TopHead.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(RASIS.location(3), RASIS.location(1), RASIS.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LASIS.location(3), LASIS.location(1), LASIS.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(VSacral.location(3), VSacral.location(1), VSacral.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(RThighUpper.location(3), RThighUpper.location(1), RThighUpper.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(RThighFront.location(3), RThighFront.location(1), RThighFront.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(RThighRear.location(3), RThighRear.location(1), RThighRear.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
@@ -666,11 +727,8 @@ for frame = 1 : height(ikResult)
     scatter3(RAnkleLat.location(3), RAnkleLat.location(1), RAnkleLat.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(RAnkleMed.location(3), RAnkleMed.location(1), RAnkleMed.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(RHeel.location(3), RHeel.location(1), RHeel.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(RMidfootSup.location(3), RMidfootSup.location(1), RMidfootSup.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(RMidfootLat.location(3), RMidfootLat.location(1), RMidfootLat.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(RMidToeLat.location(3), RMidToeLat.location(1), RMidToeLat.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(RMidToeMed.location(3), RMidToeMed.location(1), RMidToeMed.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(RMidToeTip.location(3), RMidToeTip.location(1), RMidToeTip.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
+    scatter3(RToeLat.location(3), RToeLat.location(1), RToeLat.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
+    scatter3(RToeTip.location(3), RToeTip.location(1), RToeTip.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LThighUpper.location(3), LThighUpper.location(1), LThighUpper.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LThighFront.location(3), LThighFront.location(1), LThighFront.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LThighRear.location(3), LThighRear.location(1), LThighRear.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
@@ -682,16 +740,13 @@ for frame = 1 : height(ikResult)
     scatter3(LAnkleLat.location(3), LAnkleLat.location(1), LAnkleLat.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LAnkleMed.location(3), LAnkleMed.location(1), LAnkleMed.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     scatter3(LHeel.location(3), LHeel.location(1), LHeel.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(LMidfootSup.location(3), LMidfootSup.location(1), LMidfootSup.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(LMidfootLat.location(3), LMidfootLat.location(1), LMidfootLat.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(LMidToeLat.location(3), LMidToeLat.location(1), LMidToeLat.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(LMidToeMed.location(3), LMidToeMed.location(1), LMidToeMed.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
-    scatter3(LMidToeTip.location(3), LMidToeTip.location(1), LMidToeTip.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
+    scatter3(LToeLat.location(3), LToeLat.location(1), LToeLat.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
+    scatter3(LToeTip.location(3), LToeTip.location(1), LToeTip.location(2), 10, 'filled', 'MarkerFaceColor', [0.2 0.6 0.9], 'MarkerEdgeColor', [0.2 0.6 0.9])
     % experimental marker points
-    % scatter3(markerPos_input(:,3), markerPos_input(:,1), markerPos_input(:,2), 10, 'filled', 'MarkerFaceColor', [0.2 0.9 0.6], 'MarkerEdgeColor', [0.2 0.9 0.6])
+    scatter3(markerPos_ref(frame,:,3), markerPos_ref(frame,:,1), markerPos_ref(frame,:,2), 10, 'filled', 'MarkerFaceColor', [0.2 0.9 0.6], 'MarkerEdgeColor', [0.2 0.9 0.6])
 
-    axis equal, view(45,30)
-    xlim([-1 1]), ylim([-1.5 1.5]), zlim([-0.5 2]);
+    axis equal, view(45,-30)
+    xlim([-1 1]), ylim([-0.5 1.5]), zlim([-0.5 2]);
     xlabel('z'), ylabel('x'), zlabel('y');
     drawnow;
     F = getframe(gcf);
