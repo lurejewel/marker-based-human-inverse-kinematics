@@ -6,5 +6,7 @@
 *.csv
 *.trc
 *.xml
+*.sto
 FullBodyModel_Hamner2010_v4_5.osim
+/OpenSim muslen-dof refs/
 /markerData/
