@@ -1,0 +1,10 @@
+*.log
+*.asv
+*.avi
+*.7z
+*.mat
+*.csv
+*.trc
+*.xml
+FullBodyModel_Hamner2010_v4_5.osim
+/markerData/
